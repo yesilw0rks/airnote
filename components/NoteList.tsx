@@ -7,9 +7,10 @@ interface NoteListProps {
   onSelectNote: (note: Note) => void;
   onCreateNote: () => void;
   onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
-export const NoteList: React.FC<NoteListProps> = ({ notes, onSelectNote, onCreateNote, onRefresh }) => {
+export const NoteList: React.FC<NoteListProps> = ({ notes, onSelectNote, onCreateNote, onRefresh, isRefreshing }) => {
   return (
     <div className="h-full flex flex-col">
       <div className="p-8 pb-4">
@@ -19,10 +20,11 @@ export const NoteList: React.FC<NoteListProps> = ({ notes, onSelectNote, onCreat
             {onRefresh && (
               <button 
                 onClick={onRefresh}
-                className="p-2 bg-air-surface border border-air-border rounded-lg text-air-muted hover:text-air-accent hover:border-air-accent/50 transition-all"
+                disabled={isRefreshing}
+                className="p-2 bg-air-surface border border-air-border rounded-lg text-air-muted hover:text-air-accent hover:border-air-accent/50 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                 title="Sync / Refresh"
               >
-                <RefreshCw size={18} />
+                <RefreshCw size={18} className={isRefreshing ? "animate-spin text-air-accent" : ""} />
               </button>
             )}
           </div>

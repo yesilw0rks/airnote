@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { Plus, LayoutGrid, Tag, Hash, LogOut } from 'lucide-react';
+import { Plus, LayoutGrid, Hash, LogOut, Copy, User } from 'lucide-react';
 
 interface SidebarProps {
   spaces: string[];
@@ -7,6 +8,7 @@ interface SidebarProps {
   onSelectSpace: (space: string) => void;
   onAddSpace: () => void;
   onSignOut: () => void;
+  user?: any;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -15,7 +17,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSpace,
   onAddSpace,
   onSignOut,
+  user
 }) => {
+  const copyUserId = () => {
+    const id = user?.id || 'guest-user';
+    navigator.clipboard.writeText(id);
+    alert('User ID copied! Paste this into the Extension to sync.');
+  };
+
   return (
     <div className="w-64 bg-air-surface border-r border-air-border h-screen flex flex-col flex-shrink-0">
       <div className="p-6 flex items-center gap-3">
@@ -66,7 +75,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <div className="p-4 border-t border-air-border">
+      <div className="p-4 border-t border-air-border space-y-2">
+        {user && (
+           <button 
+             onClick={copyUserId}
+             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-air-bg border border-air-border text-air-muted hover:text-white hover:border-air-accent transition-colors text-xs"
+             title="Click to copy ID for Extension"
+           >
+             <User size={14} />
+             <span className="truncate max-w-[100px]">Copy User ID</span>
+             <Copy size={12} className="ml-auto" />
+           </button>
+        )}
         <button
           onClick={onSignOut}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-air-muted hover:bg-red-500/10 hover:text-red-400 transition-colors text-sm"

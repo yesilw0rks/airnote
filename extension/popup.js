@@ -1,67 +1,67 @@
+
+const SUPABASE_URL = 'https://nnckqafklmlfiwfdjrsw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uY2txYWZrbG1sZml3ZmRqcnN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzI0NTMsImV4cCI6MjA3OTIwODQ1M30.Ov2vl_7tOHDaalVirnQ__DudbrEjK8weS6Dh2C5-3JU';
+
 document.addEventListener('DOMContentLoaded', () => {
   const authView = document.getElementById('auth-view');
   const appView = document.getElementById('app-view');
-  const loginBtn = document.getElementById('login-btn');
+  const connectBtn = document.getElementById('connect-btn');
   const logoutBtn = document.getElementById('logout-btn');
   const saveBtn = document.getElementById('save-btn');
-  const titleInput = document.getElementById('note-title');
-  const contentInput = document.getElementById('note-content');
+  const userIdInput = document.getElementById('user-id-input');
   const statusMsg = document.getElementById('status-msg');
 
-  // SUPABASE CONFIGURATION
-  const SUPABASE_URL = 'https://nnckqafklmlfiwfdjrsw.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uY2txYWZrbG1sZml3ZmRqcnN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MzI0NTMsImV4cCI6MjA3OTIwODQ1M30.Ov2vl_7tOHDaalVirnQ__DudbrEjK8weS6Dh2C5-3JU';
+  let currentUserId = null;
 
-  // Check Auth State
-  chrome.storage.local.get(['isAuthenticated', 'currentNote'], (result) => {
-    if (result.isAuthenticated) {
+  // Check if connected
+  chrome.storage.local.get(['airnote_user_id'], (result) => {
+    if (result.airnote_user_id) {
+      currentUserId = result.airnote_user_id;
       showApp();
-      if (result.currentNote) {
-        titleInput.value = result.currentNote.title || '';
-        contentInput.value = result.currentNote.content || '';
-      }
     } else {
       showAuth();
     }
   });
 
-  // Login Handler
-  loginBtn.addEventListener('click', () => {
-    // Simulating login for the extension to enable the view
-    chrome.storage.local.set({ isAuthenticated: true }, () => {
+  // Connect Logic
+  connectBtn.addEventListener('click', () => {
+    const id = userIdInput.value.trim();
+    if (!id) return alert("Please enter a User ID");
+    
+    // Save ID
+    chrome.storage.local.set({ airnote_user_id: id }, () => {
+      currentUserId = id;
       showApp();
     });
   });
 
-  // Logout Handler
+  // Disconnect Logic
   logoutBtn.addEventListener('click', () => {
-    chrome.storage.local.set({ isAuthenticated: false }, () => {
+    chrome.storage.local.remove('airnote_user_id', () => {
+      currentUserId = null;
       showAuth();
     });
   });
 
-  // Save Handler (Sends to Supabase)
+  // Save Logic
   saveBtn.addEventListener('click', async () => {
-    const title = titleInput.value;
-    const content = contentInput.value;
+    const title = document.getElementById('note-title').value;
+    const content = document.getElementById('note-content').value;
 
-    if (!title && !content) return;
+    if (!content.trim() && !title.trim()) return;
 
-    statusMsg.textContent = 'Syncing to Cloud...';
+    saveBtn.textContent = 'Saving...';
     saveBtn.disabled = true;
-    
-    const note = {
-      title: title,
-      content: content,
-      tags: ['extension', 'web-clip'],
-      space: 'General',
-      // CRITICAL UPDATE: Matches the web app's guest ID so syncing works without login
-      user_id: 'guest-user', 
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
-    };
 
     try {
+      const newNote = {
+        title: title,
+        content: content,
+        space: 'General',
+        tags: ['extension'],
+        user_id: currentUserId || 'guest-user', // Use the Real ID
+      };
+
       const response = await fetch(`${SUPABASE_URL}/rest/v1/notes`, {
         method: 'POST',
         headers: {
@@ -70,70 +70,35 @@ document.addEventListener('DOMContentLoaded', () => {
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal'
         },
-        body: JSON.stringify(note)
+        body: JSON.stringify(newNote)
       });
 
-      if (!response.ok) {
-        throw new Error('Sync failed');
-      }
+      if (!response.ok) throw new Error('Sync failed');
 
-      statusMsg.textContent = 'Saved to AirNote!';
-      chrome.storage.local.set({ currentNote: null }); // Clear draft
-      
-      setTimeout(() => {
-        statusMsg.textContent = 'Ready';
-        titleInput.value = '';
-        contentInput.value = '';
-        saveBtn.disabled = false;
-      }, 1500);
-
+      document.getElementById('note-title').value = '';
+      document.getElementById('note-content').value = '';
+      statusMsg.textContent = 'Saved to cloud!';
+      statusMsg.style.color = '#38bdf8';
+      setTimeout(() => { statusMsg.textContent = 'Ready'; statusMsg.style.color = '#a1a1aa'; }, 2000);
     } catch (error) {
-      console.error('Error:', error);
-      statusMsg.textContent = 'Error saving. Try again.';
+      console.error(error);
+      statusMsg.textContent = 'Error saving';
+      statusMsg.style.color = '#ef4444';
+    } finally {
+      saveBtn.textContent = 'Save Note';
       saveBtn.disabled = false;
     }
   });
 
-  // Auto-save draft locally
-  contentInput.addEventListener('input', () => {
-    chrome.storage.local.set({ 
-      currentNote: { title: titleInput.value, content: contentInput.value } 
-    });
-  });
-
-  // Format Toolbar
-  document.querySelectorAll('.tool-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const prefix = btn.getAttribute('data-prefix');
-      const suffix = btn.getAttribute('data-suffix');
-      insertText(contentInput, prefix, suffix);
-    });
-  });
-
   function showAuth() {
     authView.classList.remove('hidden');
-    appView.style.display = 'none';
+    appView.classList.add('hidden');
+    userIdInput.value = 'guest-user'; // Default suggestion
   }
 
   function showApp() {
     authView.classList.add('hidden');
     appView.style.display = 'flex';
-  }
-
-  function insertText(textarea, prefix, suffix) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const before = text.substring(0, start);
-    const selection = text.substring(start, end);
-    const after = text.substring(end);
-
-    textarea.value = before + prefix + selection + suffix + after;
-    textarea.focus();
-    textarea.selectionStart = start + prefix.length;
-    textarea.selectionEnd = end + prefix.length;
-    
-    // Trigger input event to save draft
-    textarea.dispatchEvent(new Event('input'));
+    appView.classList.remove('hidden');
   }
 });

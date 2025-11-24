@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase } from './lib/supabase';
@@ -7,11 +8,11 @@ import { NoteList } from './components/NoteList';
 import { NoteDetail } from './components/NoteDetail';
 import { NoteEditor } from './components/NoteEditor';
 import { Note, ViewMode } from './lib/types';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldCheck, RefreshCw } from 'lucide-react';
 
 const App = () => {
-  const [session, setSession] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  // We now track 'userId' directly instead of just session
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [notes, setNotes] = useState<Note[]>([]);
@@ -20,39 +21,50 @@ const App = () => {
   const [currentSpace, setCurrentSpace] = useState('All Notes');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Auth Listener
+  // Auth & Session Check
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    checkSession();
   }, []);
 
-  // Fetch Notes (Supabase + LocalStorage Fallback)
-  useEffect(() => {
-    if (session || isGuest) {
-      fetchNotes();
+  const checkSession = async () => {
+    // 1. Check for Magic ID (Local)
+    const localId = localStorage.getItem('airnote_user_id');
+    if (localId) {
+      setUserId(localId);
+      setLoading(false);
+      return;
     }
-  }, [session, isGuest, currentSpace]);
 
-  const fetchNotes = async () => {
-    setRefreshing(true);
+    // 2. Check for Real Supabase Session (Fallback)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      setUserId(session.user.id);
+    }
     
-    // Determine the ID to fetch: Real User ID or the shared 'guest-user' ID
-    const targetUserId = session?.user?.id || 'guest-user';
+    setLoading(false);
+  };
+
+  // Fetch Notes
+  useEffect(() => {
+    if (userId) {
+      fetchNotes();
+      // Auto-poll for sync
+      const intervalId = setInterval(() => {
+        if (viewMode === 'list') fetchNotes(true);
+      }, 5000);
+      return () => clearInterval(intervalId);
+    }
+  }, [userId, currentSpace]);
+
+  const fetchNotes = async (silent = false) => {
+    if (!silent) setRefreshing(true);
+    if (!userId) return;
 
     try {
-      // Always try Supabase first, even for Guest (to enable syncing with extension)
       let query = supabase
         .from('notes')
         .select('*')
-        .eq('user_id', targetUserId) // Fetch notes for this user (or guest)
+        .eq('user_id', userId)
         .order('updated_at', { ascending: false });
       
       if (currentSpace !== 'All Notes') {
@@ -60,31 +72,18 @@ const App = () => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
-      
-      if (data) {
-        setNotes(data);
-      }
+      if (data) setNotes(data);
 
     } catch (error) {
-      console.warn('Supabase fetch failed, falling back to local storage.', error);
-      // Local Storage Fallback (Offline Mode)
-      const localNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
-      
-      let filtered = localNotes;
-      if (currentSpace !== 'All Notes') {
-        filtered = localNotes.filter((n: Note) => n.space === currentSpace);
-      }
-      setNotes(filtered);
+      if (!silent) console.warn('Sync failed', error);
     } finally {
-      setRefreshing(false);
+      if (!silent) setRefreshing(false);
     }
   };
 
   const handleSaveNote = async (noteData: Partial<Note>) => {
-    // Use real ID or 'guest-user' so it matches what the extension sends
-    const userId = session?.user?.id || 'guest-user';
+    if (!userId) return;
 
     const newNote = {
       ...noteData,
@@ -97,51 +96,34 @@ const App = () => {
       newNote.created_at = new Date().toISOString();
     }
 
-    // Optimistic Update (Update State immediately)
+    // Optimistic UI Update
     const updatedNotes = notes.some(n => n.id === newNote.id)
       ? notes.map(n => n.id === newNote.id ? newNote : n)
       : [newNote, ...notes];
     
     setNotes(updatedNotes);
     
-    // Save to LocalStorage (Backup)
-    const allLocalNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
-    const updatedLocal = allLocalNotes.some((n: Note) => n.id === newNote.id)
-      ? allLocalNotes.map((n: Note) => n.id === newNote.id ? newNote : n)
-      : [newNote, ...allLocalNotes];
-    localStorage.setItem('airnote_notes', JSON.stringify(updatedLocal));
-
-    // Push to Supabase (Even for Guest, to allow syncing)
-    const { error } = await supabase.from('notes').upsert(newNote);
-    if (error) console.error('Supabase save error:', error);
-
+    // Save to Cloud
+    await supabase.from('notes').upsert(newNote);
+    
     setViewMode('list');
     setSelectedNote(null);
   };
 
   const handleAddSpace = () => {
     const name = prompt('Enter new space name:');
-    if (name && !spaces.includes(name)) {
-      setSpaces([...spaces, name]);
-    }
+    if (name && !spaces.includes(name)) setSpaces([...spaces, name]);
   };
 
   const handleSignOut = async () => {
-    if (isGuest) {
-      setIsGuest(false);
-    } else {
-      await supabase.auth.signOut();
-    }
-    setSession(null);
+    localStorage.removeItem('airnote_user_id');
+    await supabase.auth.signOut();
+    setUserId(null);
   };
 
-  if (loading) {
-    return <div className="h-screen w-full bg-air-bg flex items-center justify-center text-air-accent animate-pulse">Loading AirNote...</div>;
-  }
+  if (loading) return <div className="h-screen w-full bg-air-bg flex items-center justify-center text-air-accent animate-pulse">Loading AirNote...</div>;
 
-  if (!session && !isGuest) {
-    return <Auth onGuestLogin={() => setIsGuest(true)} />;
-  }
+  if (!userId) return <Auth onGuestLogin={checkSession} />;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-air-bg text-air-text font-sans">
@@ -151,30 +133,26 @@ const App = () => {
         onSelectSpace={setCurrentSpace}
         onAddSpace={handleAddSpace}
         onSignOut={handleSignOut}
+        user={{ id: userId }} // Pass the Magic ID as the user
       />
       
       <main className="flex-1 flex flex-col h-full relative">
-        {isGuest && (
-          <div className="bg-gradient-to-r from-air-surface to-air-bg text-air-muted text-xs px-4 py-2 flex items-center justify-center border-b border-air-border shadow-sm backdrop-blur-md sticky top-0 z-50">
-            <ShieldAlert size={14} className="mr-2 text-air-accent" />
-            <span className="font-medium text-white">Guest Sync Mode</span>
-            <span className="hidden sm:inline mx-2 opacity-50">|</span>
-            <span className="opacity-80">You are viewing the shared Guest notebook. Notes from the extension will appear here.</span>
-          </div>
-        )}
+        <div className="bg-air-surface border-b border-air-border text-air-muted text-xs px-4 py-2 flex items-center justify-between backdrop-blur-md sticky top-0 z-50">
+            <div className="flex items-center">
+              <ShieldCheck size={14} className="mr-2 text-air-accent" />
+              <span className="font-medium text-white">Magic Sync Active</span>
+            </div>
+            <button onClick={() => fetchNotes()} className="hover:text-white flex items-center gap-1 transition-colors">
+              <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} /> Sync
+            </button>
+        </div>
 
         {viewMode === 'list' && (
           <NoteList 
             notes={notes} 
-            onSelectNote={(note) => {
-              setSelectedNote(note);
-              setViewMode('detail');
-            }}
-            onCreateNote={() => {
-              setSelectedNote(null);
-              setViewMode('create');
-            }}
-            onRefresh={fetchNotes}
+            onSelectNote={(note) => { setSelectedNote(note); setViewMode('detail'); }}
+            onCreateNote={() => { setSelectedNote(null); setViewMode('create'); }}
+            onRefresh={() => fetchNotes()}
             isRefreshing={refreshing}
           />
         )}
@@ -192,10 +170,7 @@ const App = () => {
             initialNote={selectedNote || {}} 
             space={currentSpace === 'All Notes' ? 'General' : currentSpace}
             onSave={handleSaveNote}
-            onCancel={() => {
-              if (viewMode === 'create') setViewMode('list');
-              else setViewMode('detail');
-            }}
+            onCancel={() => viewMode === 'create' ? setViewMode('list') : setViewMode('detail')}
           />
         )}
       </main>
