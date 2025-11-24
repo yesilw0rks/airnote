@@ -2,11 +2,10 @@
   "name": "airnote",
   "version": "1.0.0",
   "description": "Dark themed note taking app with markdown support",
-  "main": "index.tsx",
+  "source": "index.html",
   "scripts": {
-    "start": "parcel index.html",
-    "build": "parcel build index.html",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "parcel",
+    "build": "parcel build"
   },
   "keywords": [
     "react",
