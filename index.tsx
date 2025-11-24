@@ -7,6 +7,7 @@ import { NoteList } from './components/NoteList';
 import { NoteDetail } from './components/NoteDetail';
 import { NoteEditor } from './components/NoteEditor';
 import { Note, ViewMode } from './lib/types';
+import { ShieldAlert } from 'lucide-react';
 
 const App = () => {
   const [session, setSession] = useState<any>(null);
@@ -40,48 +41,18 @@ const App = () => {
     }
   }, [session, isGuest, currentSpace]);
 
-  const seedWelcomeNote = (currentNotes: Note[]) => {
-    if (currentNotes.length === 0) {
-      const welcomeNote: Note = {
-        id: 'welcome-note',
-        user_id: 'system',
-        title: 'Welcome to AirNote',
-        content: `## Getting Started\n\nWelcome to **AirNote**! This is a fast, dark-themed note-taking app.\n\n## Formatting\nYou can use special formatting here:\n\n- **Bold text** using asterisks\n- *Italic text* using single asterisks\n- -Strikethrough- using dashes\n- _Underline_ using underscores\n\n## Organization\nUse the sidebar to create **Spaces** to organize your life. Add #tags to your notes to find them easily later.`,
-        tags: ['welcome', 'tutorial'],
-        space: 'General',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      return [welcomeNote];
-    }
-    return currentNotes;
-  };
-
   const fetchNotes = async () => {
     setRefreshing(true);
-    // If Guest, strictly use LocalStorage
-    if (isGuest) {
-      const localNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
-      const seededNotes = localNotes.length === 0 ? seedWelcomeNote([]) : localNotes;
-      
-      if (localNotes.length === 0) {
-        localStorage.setItem('airnote_notes', JSON.stringify(seededNotes));
-      }
-
-      let filtered = seededNotes;
-      if (currentSpace !== 'All Notes') {
-        filtered = seededNotes.filter((n: Note) => n.space === currentSpace);
-      }
-      setNotes(filtered);
-      setRefreshing(false);
-      return;
-    }
+    
+    // Determine the ID to fetch: Real User ID or the shared 'guest-user' ID
+    const targetUserId = session?.user?.id || 'guest-user';
 
     try {
-      // Attempt Supabase Fetch
+      // Always try Supabase first, even for Guest (to enable syncing with extension)
       let query = supabase
         .from('notes')
         .select('*')
+        .eq('user_id', targetUserId) // Fetch notes for this user (or guest)
         .order('updated_at', { ascending: false });
       
       if (currentSpace !== 'All Notes') {
@@ -91,23 +62,19 @@ const App = () => {
       const { data, error } = await query;
 
       if (error) throw error;
+      
       if (data) {
-        if (data.length === 0 && currentSpace === 'All Notes') {
-            setNotes(data); 
-        } else {
-            setNotes(data);
-        }
+        setNotes(data);
       }
 
     } catch (error) {
       console.warn('Supabase fetch failed, falling back to local storage.', error);
-      // Local Storage Fallback
+      // Local Storage Fallback (Offline Mode)
       const localNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
-      const seededNotes = localNotes.length === 0 ? seedWelcomeNote([]) : localNotes;
       
-      let filtered = seededNotes;
+      let filtered = localNotes;
       if (currentSpace !== 'All Notes') {
-        filtered = seededNotes.filter((n: Note) => n.space === currentSpace);
+        filtered = localNotes.filter((n: Note) => n.space === currentSpace);
       }
       setNotes(filtered);
     } finally {
@@ -116,10 +83,13 @@ const App = () => {
   };
 
   const handleSaveNote = async (noteData: Partial<Note>) => {
+    // Use real ID or 'guest-user' so it matches what the extension sends
+    const userId = session?.user?.id || 'guest-user';
+
     const newNote = {
       ...noteData,
       updated_at: new Date().toISOString(),
-      user_id: session?.user?.id || 'guest-user',
+      user_id: userId,
     } as Note;
 
     if (!newNote.id) {
@@ -134,18 +104,16 @@ const App = () => {
     
     setNotes(updatedNotes);
     
-    // Save to LocalStorage (Always do this as backup)
+    // Save to LocalStorage (Backup)
     const allLocalNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
     const updatedLocal = allLocalNotes.some((n: Note) => n.id === newNote.id)
       ? allLocalNotes.map((n: Note) => n.id === newNote.id ? newNote : n)
       : [newNote, ...allLocalNotes];
     localStorage.setItem('airnote_notes', JSON.stringify(updatedLocal));
 
-    // Only try Supabase if we have a real session
-    if (!isGuest && session) {
-      const { error } = await supabase.from('notes').upsert(newNote);
-      if (error) console.error('Supabase save error:', error);
-    }
+    // Push to Supabase (Even for Guest, to allow syncing)
+    const { error } = await supabase.from('notes').upsert(newNote);
+    if (error) console.error('Supabase save error:', error);
 
     setViewMode('list');
     setSelectedNote(null);
@@ -168,7 +136,7 @@ const App = () => {
   };
 
   if (loading) {
-    return <div className="h-screen w-full bg-air-bg flex items-center justify-center text-air-accent">Loading...</div>;
+    return <div className="h-screen w-full bg-air-bg flex items-center justify-center text-air-accent animate-pulse">Loading AirNote...</div>;
   }
 
   if (!session && !isGuest) {
@@ -187,8 +155,11 @@ const App = () => {
       
       <main className="flex-1 flex flex-col h-full relative">
         {isGuest && (
-          <div className="bg-orange-500/10 text-orange-400 text-xs px-4 py-1 flex justify-center border-b border-orange-500/20">
-            Guest Mode: Notes are saved to this browser only.
+          <div className="bg-gradient-to-r from-air-surface to-air-bg text-air-muted text-xs px-4 py-2 flex items-center justify-center border-b border-air-border shadow-sm backdrop-blur-md sticky top-0 z-50">
+            <ShieldAlert size={14} className="mr-2 text-air-accent" />
+            <span className="font-medium text-white">Guest Sync Mode</span>
+            <span className="hidden sm:inline mx-2 opacity-50">|</span>
+            <span className="opacity-80">You are viewing the shared Guest notebook. Notes from the extension will appear here.</span>
           </div>
         )}
 
@@ -203,7 +174,8 @@ const App = () => {
               setSelectedNote(null);
               setViewMode('create');
             }}
-            onRefresh={!isGuest ? fetchNotes : undefined}
+            onRefresh={fetchNotes}
+            isRefreshing={refreshing}
           />
         )}
 

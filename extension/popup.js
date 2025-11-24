@@ -55,12 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
       content: content,
       tags: ['extension', 'web-clip'],
       space: 'General',
-      // We use a shared ID or current user ID. 
-      // Since we don't have the Google Token in the extension easily, 
-      // we associate this with a guest/shared ID or let Supabase auth handle it if RLS allows.
-      // For this demo, we won't send user_id and let Supabase default or RLS handle it,
-      // or we send a placeholder that matches what the Guest Mode looks for.
-      user_id: 'google-user', 
+      // CRITICAL UPDATE: Matches the web app's guest ID so syncing works without login
+      user_id: 'guest-user', 
       updated_at: new Date().toISOString(),
       created_at: new Date().toISOString()
     };
