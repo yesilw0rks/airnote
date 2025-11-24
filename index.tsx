@@ -17,6 +17,7 @@ const App = () => {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [spaces, setSpaces] = useState<string[]>(['General', 'Personal', 'Work']);
   const [currentSpace, setCurrentSpace] = useState('All Notes');
+  const [refreshing, setRefreshing] = useState(false);
 
   // Auth Listener
   useEffect(() => {
@@ -57,6 +58,7 @@ const App = () => {
   };
 
   const fetchNotes = async () => {
+    setRefreshing(true);
     // If Guest, strictly use LocalStorage
     if (isGuest) {
       const localNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
@@ -71,6 +73,7 @@ const App = () => {
         filtered = seededNotes.filter((n: Note) => n.space === currentSpace);
       }
       setNotes(filtered);
+      setRefreshing(false);
       return;
     }
 
@@ -90,7 +93,6 @@ const App = () => {
       if (error) throw error;
       if (data) {
         if (data.length === 0 && currentSpace === 'All Notes') {
-            // Optional: Seed welcome note in Supabase if empty (omitted for simplicity to avoid write permission issues on first load)
             setNotes(data); 
         } else {
             setNotes(data);
@@ -98,7 +100,7 @@ const App = () => {
       }
 
     } catch (error) {
-      console.warn('Supabase fetch failed, falling back to local storage.');
+      console.warn('Supabase fetch failed, falling back to local storage.', error);
       // Local Storage Fallback
       const localNotes = JSON.parse(localStorage.getItem('airnote_notes') || '[]');
       const seededNotes = localNotes.length === 0 ? seedWelcomeNote([]) : localNotes;
@@ -108,6 +110,8 @@ const App = () => {
         filtered = seededNotes.filter((n: Note) => n.space === currentSpace);
       }
       setNotes(filtered);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -182,6 +186,12 @@ const App = () => {
       />
       
       <main className="flex-1 flex flex-col h-full relative">
+        {isGuest && (
+          <div className="bg-orange-500/10 text-orange-400 text-xs px-4 py-1 flex justify-center border-b border-orange-500/20">
+            Guest Mode: Notes are saved to this browser only.
+          </div>
+        )}
+
         {viewMode === 'list' && (
           <NoteList 
             notes={notes} 
@@ -193,6 +203,7 @@ const App = () => {
               setSelectedNote(null);
               setViewMode('create');
             }}
+            onRefresh={!isGuest ? fetchNotes : undefined}
           />
         )}
 
