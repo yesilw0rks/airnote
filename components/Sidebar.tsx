@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Plus, LayoutGrid, Hash, LogOut, Copy, User } from 'lucide-react';
+import { SendHorizontal, Plus, LayoutGrid, Hash, LogOut, User } from 'lucide-react';
 
 interface SidebarProps {
   spaces: string[];
@@ -8,7 +8,7 @@ interface SidebarProps {
   onSelectSpace: (space: string) => void;
   onAddSpace: () => void;
   onSignOut: () => void;
-  user?: any;
+  user?: { id: string, email?: string | null };
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -19,17 +19,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSignOut,
   user
 }) => {
-  const copyUserId = () => {
-    const id = user?.id || 'guest-user';
-    navigator.clipboard.writeText(id);
-    alert('User ID copied! Paste this into the Extension to sync.');
-  };
-
   return (
     <div className="w-64 bg-air-surface border-r border-air-border h-screen flex flex-col flex-shrink-0">
       <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 bg-gradient-to-br from-air-accent to-purple-500 rounded-lg"></div>
-        <span className="font-bold text-xl tracking-tight">AirNote</span>
+        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <SendHorizontal className="text-white" size={20} />
+        </div>
+        <span className="font-bold text-xl tracking-tight text-white">airnote</span>
       </div>
 
       <div className="px-4 py-2 text-xs font-semibold text-air-muted uppercase tracking-wider">
@@ -77,15 +73,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="p-4 border-t border-air-border space-y-2">
         {user && (
-           <button 
-             onClick={copyUserId}
-             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-air-bg border border-air-border text-air-muted hover:text-white hover:border-air-accent transition-colors text-xs"
-             title="Click to copy ID for Extension"
-           >
-             <User size={14} />
-             <span className="truncate max-w-[100px]">Copy User ID</span>
-             <Copy size={12} className="ml-auto" />
-           </button>
+           <div className="px-3 py-2 text-xs text-air-muted flex flex-col gap-1 mb-2">
+             <div className="font-bold text-white flex items-center gap-2">
+               <User size={12} />
+               {user.email ? user.email.split('@')[0] : 'User'}
+             </div>
+             <div className="opacity-50 truncate">{user.email || user.id}</div>
+           </div>
         )}
         <button
           onClick={onSignOut}

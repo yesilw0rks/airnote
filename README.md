@@ -1,10 +1,11 @@
-# AirNote 🌬️
+
+# airnote 🌬️
 
 **Capture thoughts at the speed of light.**
 
-AirNote is a dual-interface note-taking application consisting of a **Web Dashboard** and a **Chrome Extension**. It features a beautiful dark mode, markdown support, and real-time syncing.
+airnote is a dual-interface note-taking application consisting of a **Web Dashboard** and a **Chrome Extension**. It features a beautiful dark mode, markdown support, and real-time syncing.
 
-![AirNote Logo](https://via.placeholder.com/150/000000/FFFFFF?text=AirNote)
+![airnote Logo](https://via.placeholder.com/150/000000/FFFFFF?text=airnote)
 
 ## Features
 
@@ -40,7 +41,7 @@ AirNote is a dual-interface note-taking application consisting of a **Web Dashbo
 2. Toggle **Developer mode** in the top right corner.
 3. Click **Load unpacked**.
 4. Select the `extension` folder from this repository.
-5. Pin the AirNote extension to your toolbar and start writing!
+5. Pin the airnote extension to your toolbar and start writing!
 
 ## Tech Stack
 

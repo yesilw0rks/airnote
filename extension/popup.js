@@ -5,13 +5,23 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 document.addEventListener('DOMContentLoaded', () => {
   const authView = document.getElementById('auth-view');
   const appView = document.getElementById('app-view');
-  const connectBtn = document.getElementById('connect-btn');
+  
+  const authBtn = document.getElementById('auth-btn');
+  const toggleAuthBtn = document.getElementById('toggle-auth-btn');
+  const authTitle = document.getElementById('auth-title');
+  const authSubtitle = document.getElementById('auth-subtitle');
+  
   const logoutBtn = document.getElementById('logout-btn');
   const saveBtn = document.getElementById('save-btn');
-  const userIdInput = document.getElementById('user-id-input');
+  
+  const emailInput = document.getElementById('email-input');
+  const passwordInput = document.getElementById('password-input');
+  const authError = document.getElementById('auth-error');
+  
   const statusMsg = document.getElementById('status-msg');
 
   let currentUserId = null;
+  let isSignUp = false;
 
   // Check if connected
   chrome.storage.local.get(['airnote_user_id'], (result) => {
@@ -23,16 +33,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Connect Logic
-  connectBtn.addEventListener('click', () => {
-    const id = userIdInput.value.trim();
-    if (!id) return alert("Please enter a User ID");
+  // Toggle Login/Signup
+  toggleAuthBtn.addEventListener('click', () => {
+    isSignUp = !isSignUp;
+    if (isSignUp) {
+      authTitle.textContent = "Create Account";
+      authSubtitle.textContent = "Sign up to start syncing.";
+      authBtn.textContent = "Sign Up";
+      toggleAuthBtn.textContent = "Already have an account? Log In";
+    } else {
+      authTitle.textContent = "Welcome Back";
+      authSubtitle.textContent = "Log in to sync your notes.";
+      authBtn.textContent = "Log In";
+      toggleAuthBtn.textContent = "Don't have an account? Sign Up";
+    }
+    authError.textContent = "";
+  });
+
+  // Auth Logic (REST API)
+  authBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
     
-    // Save ID
-    chrome.storage.local.set({ airnote_user_id: id }, () => {
-      currentUserId = id;
-      showApp();
-    });
+    if (!email || !password) {
+      authError.textContent = "Please enter email and password";
+      return;
+    }
+
+    const originalBtnText = authBtn.textContent;
+    authBtn.textContent = isSignUp ? "Creating..." : "Logging in...";
+    authBtn.disabled = true;
+    authError.textContent = "";
+
+    try {
+      let url = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+      let body = { email, password };
+
+      if (isSignUp) {
+        url = `${SUPABASE_URL}/auth/v1/signup`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error_description || data.msg || "Authentication failed");
+      }
+
+      // If SignUp but email confirmation is required (Supabase default), handle it
+      if (isSignUp && data.user && !data.session && !data.access_token) {
+        authError.style.color = "#38bdf8"; // Blue for info
+        authError.textContent = "Success! Please check your email to confirm your account.";
+        authBtn.textContent = originalBtnText;
+        authBtn.disabled = false;
+        return;
+      }
+
+      const userId = data.user.id;
+      
+      // Save ID
+      chrome.storage.local.set({ airnote_user_id: userId }, () => {
+        currentUserId = userId;
+        showApp();
+      });
+
+    } catch (err) {
+      authError.style.color = "#ef4444";
+      authError.textContent = err.message;
+    } finally {
+      if (!authError.textContent.includes('Success')) {
+        authBtn.textContent = originalBtnText;
+        authBtn.disabled = false;
+      }
+    }
   });
 
   // Disconnect Logic
@@ -52,6 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveBtn.textContent = 'Saving...';
     saveBtn.disabled = true;
+    statusMsg.textContent = 'Syncing...';
+    statusMsg.style.color = '#a1a1aa';
 
     try {
       const newNote = {
@@ -59,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         content: content,
         space: 'General',
         tags: ['extension'],
-        user_id: currentUserId || 'guest-user', // Use the Real ID
+        user_id: currentUserId,
       };
 
       const response = await fetch(`${SUPABASE_URL}/rest/v1/notes`, {
@@ -73,17 +156,44 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify(newNote)
       });
 
-      if (!response.ok) throw new Error('Sync failed');
+      if (!response.ok) {
+        let errorMsg = 'Sync failed';
+        try {
+          const errData = await response.json();
+          errorMsg = errData.message || errData.hint || response.statusText;
+        } catch (e) {
+          errorMsg = response.statusText;
+        }
 
+        console.error("Supabase Error:", errorMsg);
+
+        if (errorMsg.includes('row-level security') || errorMsg.includes('policy')) {
+          throw new Error('DATABASE PERMISSION ERROR: RLS is enabled but policies are missing.');
+        } else if (response.status === 404) {
+           throw new Error('TABLE MISSING: Database not set up.');
+        } else {
+          throw new Error(errorMsg);
+        }
+      }
+
+      // Success
       document.getElementById('note-title').value = '';
       document.getElementById('note-content').value = '';
       statusMsg.textContent = 'Saved to cloud!';
       statusMsg.style.color = '#38bdf8';
-      setTimeout(() => { statusMsg.textContent = 'Ready'; statusMsg.style.color = '#a1a1aa'; }, 2000);
+      
+      setTimeout(() => { 
+        statusMsg.textContent = 'Ready'; 
+        statusMsg.style.color = '#a1a1aa'; 
+      }, 2000);
+
     } catch (error) {
       console.error(error);
-      statusMsg.textContent = 'Error saving';
+      statusMsg.textContent = 'Error';
       statusMsg.style.color = '#ef4444';
+      
+      // Detailed Alert
+      alert(`⚠️ SAVE FAILED ⚠️\n\nReason: ${error.message}`);
     } finally {
       saveBtn.textContent = 'Save Note';
       saveBtn.disabled = false;
@@ -93,7 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function showAuth() {
     authView.classList.remove('hidden');
     appView.classList.add('hidden');
-    userIdInput.value = 'guest-user'; // Default suggestion
+    emailInput.value = ''; 
+    passwordInput.value = '';
+    authError.textContent = '';
   }
 
   function showApp() {

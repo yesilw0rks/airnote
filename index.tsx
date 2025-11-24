@@ -1,7 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase } from './lib/supabase';
+import { Analytics } from "@vercel/analytics/react";
 import { Auth } from './components/Auth';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
@@ -11,8 +11,8 @@ import { Note, ViewMode } from './lib/types';
 import { ShieldCheck, RefreshCw } from 'lucide-react';
 
 const App = () => {
-  // We now track 'userId' directly instead of just session
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [notes, setNotes] = useState<Note[]>([]);
@@ -24,23 +24,31 @@ const App = () => {
   // Auth & Session Check
   useEffect(() => {
     checkSession();
+
+    // Listen for auth changes (sign in / sign out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUserId(session.user.id);
+        setUserEmail(session.user.email || null);
+      } else {
+        setUserId(null);
+        setUserEmail(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const checkSession = async () => {
-    // 1. Check for Magic ID (Local)
-    const localId = localStorage.getItem('airnote_user_id');
-    if (localId) {
-      setUserId(localId);
+    // 1. Check for Real Supabase Session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      setUserId(session.user.id);
+      setUserEmail(session.user.email || null);
       setLoading(false);
       return;
     }
 
-    // 2. Check for Real Supabase Session (Fallback)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.id) {
-      setUserId(session.user.id);
-    }
-    
     setLoading(false);
   };
 
@@ -116,9 +124,9 @@ const App = () => {
   };
 
   const handleSignOut = async () => {
-    localStorage.removeItem('airnote_user_id');
     await supabase.auth.signOut();
     setUserId(null);
+    setUserEmail(null);
   };
 
   if (loading) return <div className="h-screen w-full bg-air-bg flex items-center justify-center text-air-accent animate-pulse">Loading AirNote...</div>;
@@ -133,14 +141,14 @@ const App = () => {
         onSelectSpace={setCurrentSpace}
         onAddSpace={handleAddSpace}
         onSignOut={handleSignOut}
-        user={{ id: userId }} // Pass the Magic ID as the user
+        user={{ id: userId, email: userEmail }}
       />
       
       <main className="flex-1 flex flex-col h-full relative">
         <div className="bg-air-surface border-b border-air-border text-air-muted text-xs px-4 py-2 flex items-center justify-between backdrop-blur-md sticky top-0 z-50">
             <div className="flex items-center">
               <ShieldCheck size={14} className="mr-2 text-air-accent" />
-              <span className="font-medium text-white">Magic Sync Active</span>
+              <span className="font-medium text-white">Cloud Sync Active</span>
             </div>
             <button onClick={() => fetchNotes()} className="hover:text-white flex items-center gap-1 transition-colors">
               <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} /> Sync
@@ -174,6 +182,7 @@ const App = () => {
           />
         )}
       </main>
+      <Analytics />
     </div>
   );
 };

@@ -1,108 +1,266 @@
 
 import React, { useState } from 'react';
-import { Wind, Loader2, ArrowRight, Zap } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { SendHorizontal, Loader2, ArrowRight, Mail, Lock, AlertCircle, Zap, Globe, Shield, ChevronLeft } from 'lucide-react';
 
 interface AuthProps {
   onGuestLogin: () => void;
 }
 
-export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
-  const [loading, setLoading] = useState(false);
+type AuthMode = 'landing' | 'login' | 'signup';
 
-  const handleMagicLogin = async () => {
+export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
+  const [mode, setMode] = useState<AuthMode>('landing');
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    // Simulate a network request for effect
-    setTimeout(() => {
-      // Generate a stable ID for this user if one doesn't exist
-      let userId = localStorage.getItem('airnote_user_id');
-      if (!userId) {
-        userId = crypto.randomUUID();
-        localStorage.setItem('airnote_user_id', userId);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (mode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        if (data.user && !data.session) {
+          setMessage("Success! Check your email for the confirmation link.");
+        } else {
+          onGuestLogin();
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        onGuestLogin();
       }
-      onGuestLogin(); // This triggers the App to load, checking localStorage
-    }, 800);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-air-bg relative overflow-hidden text-air-text">
+    <div className="min-h-screen flex flex-col bg-[#09090b] relative overflow-hidden text-white font-sans selection:bg-air-accent/30">
       {/* Background Gradients */}
-      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-air-accent/5 rounded-full blur-[120px]"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
       {/* Navbar */}
-      <nav className="flex items-center justify-between p-6 max-w-7xl mx-auto w-full z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-air-accent to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-air-accent/20">
-            <Wind className="w-6 h-6 text-white" />
+      <nav className="flex items-center justify-between p-6 max-w-7xl mx-auto w-full z-20">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setMode('landing')}>
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <SendHorizontal className="w-6 h-6 text-white" />
           </div>
-          <span className="text-2xl font-bold tracking-tight text-white">AirNote</span>
+          <span className="text-2xl font-bold tracking-tight text-white">airnote</span>
         </div>
-        <div className="hidden md:flex gap-6 text-sm font-medium text-air-muted">
-           <span className="opacity-50">v1.0</span>
-        </div>
+
+        {mode === 'landing' && (
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setMode('login')}
+              className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+            >
+              Log In
+            </button>
+            <button 
+              onClick={() => setMode('signup')}
+              className="text-sm font-medium bg-white/10 hover:bg-white/20 text-white px-5 py-2 rounded-full transition-all border border-white/10"
+            >
+              Sign Up
+            </button>
+          </div>
+        )}
       </nav>
 
-      {/* Hero Section */}
-      <main className="flex-1 flex items-center justify-center p-4 z-10">
-        <div className="max-w-5xl w-full grid md:grid-cols-2 gap-12 items-center">
-          
-          {/* Left Column: Copy */}
-          <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-air-surface border border-air-border text-xs text-air-accent mb-2">
-              <Zap size={12} fill="currentColor" />
-              <span>Instant Setup &bull; No Config Required</span>
-            </div>
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-6 z-10">
+        
+        {/* LANDING PAGE UI */}
+        {mode === 'landing' && (
+          <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-16 items-center animate-in fade-in duration-700">
             
-            <h1 className="text-5xl md:text-7xl font-bold text-white leading-tight">
-              Capture thoughts <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-air-accent to-purple-500">
-                at the speed of light.
-              </span>
-            </h1>
-            <p className="text-lg text-air-muted leading-relaxed max-w-md">
-              The seamless note-taking app. We've simplified the login process so you can start writing instantly.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <button
-                onClick={handleMagicLogin}
-                disabled={loading}
-                className="flex items-center justify-center gap-3 bg-white text-black hover:bg-gray-200 transition-all duration-200 py-4 px-8 rounded-xl font-bold text-lg disabled:opacity-70 shadow-lg shadow-white/10 w-full sm:w-auto"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : (
-                   <>
-                    Start Writing
-                    <ArrowRight size={20} />
-                   </>
-                )}
-              </button>
-            </div>
-            
-            <div className="text-xs text-air-muted/50 max-w-sm border-l-2 border-air-border pl-3">
-              We create a secure Magic ID for your device. Copy it from the sidebar to sync with the Chrome Extension.
-            </div>
-          </div>
+            {/* Left Column: Text */}
+            <div className="space-y-8">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#18181b] border border-[#27272a] text-xs font-medium text-blue-400 w-fit">
+                <Zap size={12} fill="currentColor" />
+                Instant Setup • No Config Required
+              </div>
 
-          {/* Right Column: Visuals */}
-          <div className="relative hidden md:block">
-            <div className="absolute inset-0 bg-gradient-to-t from-air-bg via-transparent to-transparent z-10"></div>
-            <div className="bg-air-surface border border-air-border rounded-2xl p-6 shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500">
-              <div className="flex items-center gap-2 mb-4 border-b border-air-border pb-4">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <h1 className="text-5xl md:text-7xl font-bold text-white leading-[1.1] tracking-tight">
+                Capture thoughts <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+                  at the speed of light.
+                </span>
+              </h1>
+
+              <p className="text-lg text-gray-400 leading-relaxed max-w-xl">
+                The seamless note-taking app. We've simplified the login process so you can start writing instantly.
+              </p>
+
+              <div className="pt-2">
+                <button 
+                  onClick={() => setMode('login')}
+                  className="bg-white text-black hover:bg-gray-200 font-bold text-lg px-8 py-4 rounded-full transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)]"
+                >
+                  Start Writing
+                  <ArrowRight className="w-5 h-5" />
+                </button>
               </div>
-              <div className="space-y-3 font-mono text-sm">
-                <div className="text-air-muted">## Welcome to AirNote</div>
-                <div className="text-white">This app now uses **Magic Sync**.</div>
-                <div className="text-white">- No Google Config needed</div>
-                <div className="text-white">- Instant Cloud Sync</div>
-                <div className="text-white">- _Just works_</div>
+            </div>
+
+            {/* Right Column: Visual Mockup */}
+            <div className="relative group perspective-1000">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur-3xl opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+              
+              <div className="relative bg-[#18181b] border border-[#27272a] rounded-2xl p-6 shadow-2xl transform rotate-2 transition-transform duration-500 hover:rotate-0">
+                {/* Window Controls */}
+                <div className="flex items-center gap-2 mb-6 opacity-80">
+                  <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                  <div className="w-3 h-3 rounded-full bg-[#eab308]"></div>
+                  <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
+                </div>
+
+                {/* Mock Code Content */}
+                <div className="space-y-4 font-mono text-sm leading-relaxed">
+                  <div className="text-gray-500">## Welcome to airnote</div>
+                  <div className="text-white">
+                    This app now uses <span className="text-blue-400 font-bold">**Email Auth**</span>.
+                  </div>
+                  <div className="text-gray-300">- Secure & Private</div>
+                  <div className="text-gray-300">- Instant Cloud Sync</div>
+                  <div className="text-gray-500 italic">_Just works_</div>
+                  <div className="h-4"></div>
+                  <div className="flex gap-2">
+                     <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse"></span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* AUTH FORM (Login / Signup) */}
+        {(mode === 'login' || mode === 'signup') && (
+          <div className="w-full max-w-md animate-in slide-in-from-bottom-10 duration-500">
+            <div className="bg-[#18181b] border border-[#27272a] p-8 rounded-3xl shadow-2xl relative">
+              
+              <button 
+                onClick={() => setMode('landing')}
+                className="absolute top-6 left-6 text-gray-500 hover:text-white transition-colors"
+              >
+                <ChevronLeft size={24} />
+              </button>
+
+              <div className="mt-8">
+                <h2 className="text-3xl font-bold text-white mb-2 text-center">
+                  {mode === 'signup' ? 'Create Account' : 'Welcome Back'}
+                </h2>
+                <p className="text-gray-400 mb-8 text-center text-sm">
+                  {mode === 'signup' ? 'Start syncing your notes today.' : 'Enter your email to access your notes.'}
+                </p>
+
+                <form onSubmit={handleAuth} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Email</label>
+                    <div className="relative group">
+                      <Mail className="absolute left-4 top-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
+                      <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="hello@airnote.app" 
+                        className="w-full bg-[#09090b] border border-[#27272a] rounded-xl py-3.5 pl-12 pr-4 text-white focus:border-blue-500 focus:outline-none transition-all placeholder:text-gray-700 font-mono text-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-3.5 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={18} />
+                      <input 
+                        type="password" 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••" 
+                        className="w-full bg-[#09090b] border border-[#27272a] rounded-xl py-3.5 pl-12 pr-4 text-white focus:border-blue-500 focus:outline-none transition-all placeholder:text-gray-700 font-mono text-sm"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-200 text-xs">
+                      <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {message && (
+                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-200 text-xs text-center">
+                      {message}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-white text-black hover:bg-gray-200 font-bold py-4 rounded-xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 mt-6"
+                  >
+                    {loading ? <Loader2 className="animate-spin" /> : (
+                      <>
+                        {mode === 'signup' ? 'Create Account' : 'Log In'}
+                        <ArrowRight size={18} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-8 text-center">
+                  <button 
+                    onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
+                    className="text-xs text-gray-500 hover:text-white transition-colors"
+                  >
+                    {mode === 'signup' ? 'Already have an account? Log In' : "Don't have an account? Sign Up"}
+                  </button>
+                </div>
+                
+                <div className="mt-4 text-center border-t border-[#27272a] pt-4">
+                   <button onClick={onGuestLogin} className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors uppercase tracking-wider font-bold">
+                     Continue as Guest
+                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Footer */}
+      {mode === 'landing' && (
+        <footer className="border-t border-[#27272a] bg-[#09090b] mt-auto">
+          <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
+            <div>© 2024 airnote. All rights reserved.</div>
+            <div className="flex gap-6 mt-4 md:mt-0">
+              <span className="flex items-center gap-1"><Zap size={12}/> V1.3</span>
+              <span className="flex items-center gap-1"><Shield size={12}/> Secure</span>
+              <span className="flex items-center gap-1"><Globe size={12}/> Global</span>
+            </div>
+          </div>
+        </footer>
+      )}
     </div>
   );
 };
