@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase } from './lib/supabase';
-import { Analytics } from "@vercel/analytics/react";
 import { Auth } from './components/Auth';
 import { Sidebar } from './components/Sidebar';
 import { NoteList } from './components/NoteList';
@@ -182,7 +181,6 @@ const App = () => {
           />
         )}
       </main>
-      <Analytics />
     </div>
   );
 };
