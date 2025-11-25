@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { SendHorizontal, Loader2, ArrowRight, Mail, Lock, AlertCircle, Zap, Globe, Shield, ChevronLeft } from 'lucide-react';
+import { Cast, Loader2, ArrowRight, Mail, Lock, AlertCircle, Zap, Globe, Shield, ChevronLeft } from 'lucide-react';
 
 interface AuthProps {
   onGuestLogin: () => void;
@@ -60,7 +60,7 @@ export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
       <nav className="flex items-center justify-between p-6 max-w-7xl mx-auto w-full z-20">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setMode('landing')}>
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <SendHorizontal className="w-6 h-6 text-white" />
+            <Cast className="w-6 h-6 text-white" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-white">airnote</span>
         </div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { SendHorizontal, Plus, LayoutGrid, Hash, LogOut, User } from 'lucide-react';
+import { Cast, Plus, LayoutGrid, Hash, LogOut, User } from 'lucide-react';
 
 interface SidebarProps {
   spaces: string[];
@@ -23,7 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="w-64 bg-air-surface border-r border-air-border h-screen flex flex-col flex-shrink-0">
       <div className="p-6 flex items-center gap-3">
         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <SendHorizontal className="text-white" size={20} />
+            <Cast className="text-white" size={20} />
         </div>
         <span className="font-bold text-xl tracking-tight text-white">airnote</span>
       </div>
