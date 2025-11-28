@@ -60,6 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // PRESET ACCOUNT BYPASS
+    if (email === 'admin@airnote' && password === 'Airnote123') {
+      const fakeId = 'preset-admin-id';
+      chrome.storage.local.set({ airnote_user_id: fakeId }, () => {
+        currentUserId = fakeId;
+        showApp();
+      });
+      return;
+    }
+
     const originalBtnText = authBtn.textContent;
     authBtn.textContent = isSignUp ? "Creating..." : "Logging in...";
     authBtn.disabled = true;
@@ -88,10 +98,20 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(data.error_description || data.msg || "Authentication failed");
       }
 
-      // If SignUp but email confirmation is required (Supabase default), handle it
+      // If session exists (Instant Login), save and proceed
+      if (data.user && (data.session || data.access_token)) {
+        const userId = data.user.id;
+        chrome.storage.local.set({ airnote_user_id: userId }, () => {
+          currentUserId = userId;
+          showApp();
+        });
+        return;
+      }
+
+      // If SignUp but NO session (Email Confirmation Required)
       if (isSignUp && data.user && !data.session && !data.access_token) {
         authError.style.color = "#38bdf8"; // Blue for info
-        authError.textContent = "Success! Please check your email to confirm your account.";
+        authError.textContent = "Success! Disable 'Confirm Email' in Supabase dashboard to login instantly.";
         authBtn.textContent = originalBtnText;
         authBtn.disabled = false;
         return;

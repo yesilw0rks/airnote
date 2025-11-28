@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { supabase } from './lib/supabase';
@@ -29,7 +30,9 @@ const App = () => {
       if (session?.user) {
         setUserId(session.user.id);
         setUserEmail(session.user.email || null);
-      } else {
+        // Clear preset mode if real login happens
+        localStorage.removeItem('airnote_preset_mode');
+      } else if (!localStorage.getItem('airnote_preset_mode')) {
         setUserId(null);
         setUserEmail(null);
       }
@@ -39,7 +42,15 @@ const App = () => {
   }, []);
 
   const checkSession = async () => {
-    // 1. Check for Real Supabase Session
+    // 1. Check for Preset Mode (Bypass)
+    if (localStorage.getItem('airnote_preset_mode') === 'true') {
+      setUserId('preset-admin-id');
+      setUserEmail('admin@airnote');
+      setLoading(false);
+      return;
+    }
+
+    // 2. Check for Real Supabase Session
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user?.id) {
       setUserId(session.user.id);
@@ -123,6 +134,7 @@ const App = () => {
   };
 
   const handleSignOut = async () => {
+    localStorage.removeItem('airnote_preset_mode');
     await supabase.auth.signOut();
     setUserId(null);
     setUserEmail(null);

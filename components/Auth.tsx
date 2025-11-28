@@ -23,6 +23,17 @@ export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
     setError(null);
     setMessage(null);
 
+    // PRESET ACCOUNT BACKDOOR
+    if (email === 'admin@airnote' && password === 'Airnote123') {
+      localStorage.setItem('airnote_preset_mode', 'true');
+      // Simulate a small network delay for realism
+      setTimeout(() => {
+        onGuestLogin();
+        setLoading(false);
+      }, 500);
+      return;
+    }
+
     try {
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
