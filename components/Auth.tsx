@@ -30,10 +30,14 @@ export const Auth: React.FC<AuthProps> = ({ onGuestLogin }) => {
           password,
         });
         if (error) throw error;
-        if (data.user && !data.session) {
-          setMessage("Success! Check your email for the confirmation link.");
-        } else {
+        
+        // If Supabase returns a session immediately (Email Confirmation Disabled), log them in.
+        if (data.session) {
           onGuestLogin();
+        } else if (data.user) {
+          // Email Confirmation is ENABLED in dashboard
+          setMessage("Success! Check your email for the link.");
+          setError("Note: If you don't receive the email, go to your Supabase Dashboard > Auth > Providers > Email and disable 'Confirm Email' for instant signup.");
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
