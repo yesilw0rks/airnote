@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const selection = window.getSelection().toString();
           return {
             text: selection,
-            url: window.location.hostname
+            url: window.location.href // Use href for full URL
           };
         }
       });
