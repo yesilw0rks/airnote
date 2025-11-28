@@ -281,6 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ghostText.style.display = 'block';
     ghostText.textContent = text;
     tabHint.style.display = 'flex';
+    // Hide placeholder so it doesn't overlap with ghost text
+    noteContent.removeAttribute('placeholder');
   }
 
   function clearSuggestion() {
@@ -288,6 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
     ghostText.textContent = '';
     ghostText.style.display = 'none';
     tabHint.style.display = 'none';
+    // Restore placeholder
+    noteContent.setAttribute('placeholder', 'Start writing...');
   }
 
   // Handle Tab key
