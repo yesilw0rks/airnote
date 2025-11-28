@@ -19,9 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const authError = document.getElementById('auth-error');
   
   const statusMsg = document.getElementById('status-msg');
+  const noteContent = document.getElementById('note-content');
+  const ghostText = document.getElementById('ghost-text');
+  const tabHint = document.getElementById('tab-hint');
 
   let currentUserId = null;
   let isSignUp = false;
+  let pendingSuggestion = null;
 
   // Check if connected
   chrome.storage.local.get(['airnote_user_id'], (result) => {
@@ -199,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Success
       document.getElementById('note-title').value = '';
       document.getElementById('note-content').value = '';
+      clearSuggestion(); // Clear any pending suggestion
       statusMsg.textContent = 'Saved to cloud!';
       statusMsg.style.color = '#38bdf8';
       
@@ -220,6 +225,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- AUTOCOMPLETE LOGIC ---
+
+  function showApp() {
+    authView.classList.add('hidden');
+    appView.style.display = 'flex';
+    appView.classList.remove('hidden');
+    
+    // Attempt to check for selection on active tab
+    checkForSelection();
+  }
+
   function showAuth() {
     authView.classList.remove('hidden');
     appView.classList.add('hidden');
@@ -228,9 +244,65 @@ document.addEventListener('DOMContentLoaded', () => {
     authError.textContent = '';
   }
 
-  function showApp() {
-    authView.classList.add('hidden');
-    appView.style.display = 'flex';
-    appView.classList.remove('hidden');
+  async function checkForSelection() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) return;
+
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          const selection = window.getSelection().toString();
+          return {
+            text: selection,
+            url: window.location.hostname
+          };
+        }
+      });
+
+      if (result && result[0] && result[0].result) {
+        const { text, url } = result[0].result;
+        if (text && text.trim().length > 0) {
+          // Format the suggestion
+          pendingSuggestion = `"${text.trim()}"\n${url}`;
+          
+          // Only show if textarea is empty or user hasn't typed yet
+          if (noteContent.value.trim() === '') {
+            showSuggestion(pendingSuggestion);
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Script injection not allowed on this page', err);
+    }
   }
+
+  function showSuggestion(text) {
+    ghostText.style.display = 'block';
+    ghostText.textContent = text;
+    tabHint.style.display = 'flex';
+  }
+
+  function clearSuggestion() {
+    pendingSuggestion = null;
+    ghostText.textContent = '';
+    ghostText.style.display = 'none';
+    tabHint.style.display = 'none';
+  }
+
+  // Handle Tab key
+  noteContent.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && pendingSuggestion) {
+      e.preventDefault(); // Stop focus change
+      noteContent.value = pendingSuggestion;
+      clearSuggestion();
+    }
+  });
+
+  // Clear ghost text if user starts typing something else
+  noteContent.addEventListener('input', () => {
+    if (pendingSuggestion) {
+      clearSuggestion();
+    }
+  });
 });
